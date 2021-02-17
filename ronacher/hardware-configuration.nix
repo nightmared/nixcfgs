@@ -13,7 +13,7 @@
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = with config.boot.kernelPackages; [ v4l2loopback ];
   boot.blacklistedKernelModules = [ "nouveau" ];
-  boot.kernelParams = [ "intel_iommu=on" "pcie_aspm=off" ];
+  boot.kernelParams = [ "intel_iommu=on" "pcie_aspm=off" "noibrs" "noibpb" "nopti" "nospectre_v2" "nospectre_v1" "l1tf=off" "nospec_store_bypass_disable" "no_stf_barrier" "mds=off" "tsx=on" "tsx_async_abort=off" "mitigations=off"  ];
   boot.extraModprobeConfig = ''
     options kvm_intel nested=1 ept=1 enable_apicv=1 enable_shadow_vmcs=1
   '';

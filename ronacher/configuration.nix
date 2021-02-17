@@ -17,6 +17,9 @@ in
   networking.wireless.enable = false;
   networking.networkmanager.enable = true;
   networking.firewall.enable = false;
+  networking.extraHosts = ''
+    147.127.160.30 grafana.k8s.inpt.fr
+  '';
 
   networking.hostId = "745ecd5b";
 
@@ -92,8 +95,9 @@ in
       #yj = nixpkgs-master.yj;
       #calibre = nixpkgs-master.calibre;
       #libvirt = super.libvirt.override { iptables = super.iptables-nftables-compat; };
-      virtualbox = nixpkgs-master.virtualbox;
+      #virtualbox = nixpkgs-master.virtualbox;
       #mpv = nixpkgs-master.mpv;
+      #podman-unwrapped = nixpkgs-master.podman-unwrapped;
     };
 
   in [
@@ -103,12 +107,12 @@ in
   ];
 
   virtualisation.libvirtd = {
-    enable = true;
+    #enable = true;
     qemuOvmf = true;
   };
   #programs.dconf.enable = true;
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = let arcan = (pkgs.callPackage (import /home/nightmared/dev/arcan/Arcan.nix) {}); in with pkgs; [
     wget tmux curl thunderbird evince neovim chromium google-chrome llvm zoom-us nvme-cli htop smartmontools pciutils gnome3.nautilus gnome3.eog gnome3.evince gnome3.file-roller gimp inkscape gnome3.networkmanagerapplet cryptsetup wireguard mpd ncmpc qemu patchelf gcc_multi go clang-analyzer file gnome3.gnome-themes-standard gnome3.gnome-themes-extra pavucontrol lsof git nodejs_latest latest.firefox-nightly-bin xdg_utils lm_sensors powertop hicolor-icon-theme keepassxc unzip p7zip python39Full gnumake gdb fwupd libreoffice-fresh-unwrapped numix-icon-theme-square glib calibre gnome3.gedit borgbackup slurp sshfs intel-gpu-tools iotop dfeet manpages pv nload ripgrep imagemagickBig texlive.combined.scheme-medium gopass xournal virt-manager kubectl tinc ctags binutils lldb bind vlc nfs-utils liferea rustup iperf linuxPackages.perf niv jq
     v4l-utils ffmpeg-full btrfs-progs
     woeusb
@@ -126,8 +130,15 @@ in
     samba cifs-utils
     nmap
     #s3s
-    #availcheck
+    availcheck
+    tor
+    inetutils
     #le-dns
+    ghidra-bin
+    rlwrap socat screen minicom
+    clang-tools bear
+    golangci-lint
+    #emacs
   ];
 
   documentation.dev.enable = true;
@@ -188,8 +199,26 @@ in
       Type = "oneshot";
       ExecStart = "${pkgs.bash}/bin/sh -c '${pkgs.coreutils}/bin/cat /home/nightmared/.config/edid/edid-dvi > /sys/kernel/debug/dri/0/DP-1/edid_override'";
     };
-    wantedBy = [ "default.target" ];
+    wantedBy = [ "multi-user.target" ];
   };
+
+
+  systemd.services.nfs-mount = {
+    enable = true;
+    description = "Mount the remote nfs folder";
+    script = ''
+      ${pkgs.nfs-utils}/bin/mount.nfs 10.0.24.4:/ /downloads
+      ${pkgs.coreutils}/bin/chmod 755 /downloads
+    '';
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStop = "${pkgs.util-linux}/bin/umount /downloads";
+      RemainAfterExit = "yes";
+    };
+    requires = [ "wireguard-wg0.service" ];
+    wantedBy = [ "multi-user.target" ];
+  };
+
 
   security.pam.loginLimits = [
     {
@@ -201,8 +230,8 @@ in
   ];
 
 
-  virtualisation.virtualbox.host.enable = true;
-  virtualisation.virtualbox.host.enableExtensionPack = true;
+  #virtualisation.virtualbox.host.enable = true;
+  #virtualisation.virtualbox.host.enableExtensionPack = true;
   users.extraGroups.vboxusers.members = [ "nightmared" ];
 
   #nix = {
@@ -224,7 +253,9 @@ in
     br1 = {
       interfaces = [];
     };
-   };
+  };
+
+  #powerManagement.cpuFreqGovernor = "schedutil";
 
   networking.interfaces = {
     br1 = {
@@ -256,6 +287,23 @@ in
     ];
   };
   systemd.services.prometheus-node-exporter = { after = [ "wireguard-wg0.service" ]; };
+
+  systemd.services.availcheck = {
+    description = "Measure availbility of http(s) endpoints";
+    enable = true;
+    serviceConfig = {
+      Type = "simple";
+      User = "nightmared";
+      ExecStart = "${pkgs.availcheck}/bin/availcheck";
+      Environment = "XDG_CONFIG_HOME=/home/nightmared/.config/";
+      ProtectSystem = "full";
+      NoNewPrivileges = true;
+    };
+  };
+
+  services.davfs2 = {
+    enable = true;
+  };
 
   services.gvfs.enable = true;
 
