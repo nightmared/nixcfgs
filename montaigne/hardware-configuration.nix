@@ -12,26 +12,42 @@
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
-  boot.loader.grub.copyKernels = true;
-  boot.supportedFilesystems = [ "zfs" ];
+  boot.initrd.supportedFilesystems = [ "btrfs" "vfat" ];
 
-  fileSystems."/" =
-    { device = "spool/root";
-      fsType = "zfs";
-    };
+  fileSystems."/" = {
+    device = "/dev/disk/by-uuid/0d20b2bf-935c-48c7-bd07-8b81ae7ddbcf";
+    fsType = "btrfs";
+    options = ["ssd" "discard=async" "noatime" "nodiratime" "compress=zstd" ];
+  };
+
+  fileSystems."/srv/nas" = {
+    device = "/dev/data_ssd/nas";
+    fsType = "btrfs";
+    options = ["ssd" "discard=async" "noatime" "nodiratime" "compress=zstd" ];
+   };
+
+  boot.initrd.preLVMCommands = ''
+    mkdir -m 0755 /boot-key
+    mount -t vfat /dev/nvme0n1p1 /boot-key
+    cp /boot-key/lukskey /bootkey
+    umount /boot-key
+  '';
+
+  boot.initrd.luks.devices."install" = {
+    device = "/dev/disk/by-uuid/b029348a-ecb6-4f6b-869a-7255e8556566";
+    allowDiscards = true;
+    keyFileSize = 4096;
+    keyFile = "/bootkey";
+  };
 
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/5A1D-A2FC";
+    { device = "/dev/disk/by-uuid/1E13-D81C";
       fsType = "vfat";
-    };
-
-  fileSystems."/nix" =
-    { device = "spool/nix";
-      fsType = "zfs";
     };
 
   swapDevices = [ ];
 
+  powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
   # high-resolution display
   hardware.video.hidpi.enable = lib.mkDefault true;
 }

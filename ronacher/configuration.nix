@@ -9,7 +9,10 @@ in
       #<home-manager/nixos>
     ];
 
+  environment.enableDebugInfo = true;
+
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  #boot.kernel.features = { debug = true; };
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -72,7 +75,7 @@ in
   nixpkgs.config.allowUnfree = true;
 
   services.zfs.autoSnapshot = {
-    enable = true;
+    #enable = true;
     frequent = 2;
     hourly = 4;
     monthly = 2;
@@ -85,19 +88,13 @@ in
     nightlyOverlay = (import "${moz-url}/firefox-overlay.nix");
     nixpkgs-master = import /home/nightmared/dev/nixpkgs {};
     masterOverlay = self: super: rec {
-      #python3 = super.python3.override {
-      #  packageOverrides = selfx: superx:  {
-      #    feedparser = nixpkgs-master.python3Packages.feedparser;
-      #    llfuse = nixpkgs-master.python3Packages.llfuse;
+      #linuxPackages_5_11 = nixpkgs-master.linuxPackages_5_11 // {
+      #  kernel = nixpkgs-master.linuxPackages_5_11.kernel.override {
+      #    separateDebugInfo = true;
+      #    dontStrip = true;
       #  };
       #};
-      #python3Packages = python3.pkgs;
-      #yj = nixpkgs-master.yj;
-      #calibre = nixpkgs-master.calibre;
-      #libvirt = super.libvirt.override { iptables = super.iptables-nftables-compat; };
-      #virtualbox = nixpkgs-master.virtualbox;
-      #mpv = nixpkgs-master.mpv;
-      #podman-unwrapped = nixpkgs-master.podman-unwrapped;
+      #linuxPackages_latest = self.linuxPackages_5_11;
     };
 
   in [
@@ -112,33 +109,42 @@ in
   };
   #programs.dconf.enable = true;
 
-  environment.systemPackages = let arcan = (pkgs.callPackage (import /home/nightmared/dev/arcan/Arcan.nix) {}); in with pkgs; [
-    wget tmux curl thunderbird evince neovim chromium google-chrome llvm zoom-us nvme-cli htop smartmontools pciutils gnome3.nautilus gnome3.eog gnome3.evince gnome3.file-roller gimp inkscape gnome3.networkmanagerapplet cryptsetup wireguard mpd ncmpc qemu patchelf gcc_multi go clang-analyzer file gnome3.gnome-themes-standard gnome3.gnome-themes-extra pavucontrol lsof git nodejs_latest latest.firefox-nightly-bin xdg_utils lm_sensors powertop hicolor-icon-theme keepassxc unzip p7zip python39Full gnumake gdb fwupd libreoffice-fresh-unwrapped numix-icon-theme-square glib calibre gnome3.gedit borgbackup slurp sshfs intel-gpu-tools iotop dfeet manpages pv nload ripgrep imagemagickBig texlive.combined.scheme-medium gopass xournal virt-manager kubectl tinc ctags binutils lldb bind vlc nfs-utils liferea rustup iperf linuxPackages.perf niv jq
-    v4l-utils ffmpeg-full btrfs-progs
-    woeusb
-    musl openssl minio wireshark filezilla
-    breeze-icons breeze-qt5 dolphin
+  environment.systemPackages = with pkgs; [
+    # Internet thingies
+    wget curl latest.firefox-nightly-bin thunderbird chromium google-chrome zoom-us liferea 
+    # base GUI utilities
+    gnome3.nautilus gnome3.evince gnome3.file-roller calibre gnome3.gedit
+    # Theming
+    gnome3.networkmanagerapplet gnome3.gnome-themes-standard gnome3.gnome-themes-extra breeze-icons breeze-qt5 dolphin hicolor-icon-theme  numix-icon-theme-square
+    # audio/video
+    gimp inkscape gnome3.eog v4l-utils ffmpeg-full mpd ncmpc vlc pavucontrol mpv
+    # fs
+    btrfs-progs nfs-utils samba cifs-utils
+    # network utilities
+    wireshark filezilla nftables nmap tor inetutils wireguard borgbackup sshfs bind tcpdump
+    # legacy cruft
     xorg.xhost xorg.xauth
+    # python
     python3Packages.pylint python39Packages.pip python39Packages.setuptools
-    usbutils
-    kubernetes-helm
-    freerdp
-    tcpdump
-    nftables
-    virt-viewer
-    mpv
-    samba cifs-utils
-    nmap
-    #s3s
-    availcheck
-    tor
-    inetutils
-    #le-dns
+    # net7
+    gopass tinc kubernetes-helm kubectl nodejs_latest 
+    # virtu
+    freerdp virt-viewer virt-manager qemu woeusb
+    # misc utilities
+    slurp usbutils rlwrap socat screen minicom nvme-cli htop pciutils cryptsetup patchelf file lsof tmux xdg_utils keepassxc unzip p7zip manpages pv nload ripgrep imagemagickBig jq
+    # monitoring
+    fwupd availcheck smartmontools lm_sensors powertop intel-gpu-tools iotop dfeet iperf
+    # Office
+    libreoffice-fresh-unwrapped texlive.combined.scheme-medium
+
+    # dev
+    python39Full gnumake gdb git neovim lldb rustup
+    # reverse
     ghidra-bin
-    rlwrap socat screen minicom
-    clang-tools bear
-    golangci-lint
-    #emacs
+    # C/C++ tools
+    clang-tools bear clang-analyzer llvm gcc_multi go golangci-lint ctags binutils 
+    # Linux stuff
+    linuxHeaders linuxPackages_5_10.bpftrace linuxPackages_latest.perf
   ];
 
   documentation.dev.enable = true;
@@ -207,7 +213,12 @@ in
     enable = true;
     description = "Mount the remote nfs folder";
     script = ''
-      ${pkgs.nfs-utils}/bin/mount.nfs 10.0.24.4:/ /downloads
+      local_ip=$(${pkgs.iproute2}/bin/ip -4 -j a show dev wlo1 | ${pkgs.jq}/bin/jq -r '.[0].addr_info[0].local')
+      if [ "$local_ip" = "192.168.1.13" ]; then
+        ${pkgs.nfs-utils}/bin/mount.nfs 192.168.1.42:/ /downloads
+      else
+        ${pkgs.nfs-utils}/bin/mount.nfs 10.0.24.4:/ /downloads
+      fi
       ${pkgs.coreutils}/bin/chmod 755 /downloads
     '';
     serviceConfig = {
@@ -215,7 +226,7 @@ in
       ExecStop = "${pkgs.util-linux}/bin/umount /downloads";
       RemainAfterExit = "yes";
     };
-    requires = [ "wireguard-wg0.service" ];
+    requires = [ "wireguard-wg0.service" "networking.target" ];
     wantedBy = [ "multi-user.target" ];
   };
 
