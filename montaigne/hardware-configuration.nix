@@ -13,6 +13,14 @@
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
   boot.initrd.supportedFilesystems = [ "btrfs" "vfat" ];
+  boot.kernel.sysctl = { "net.ipv4.conf.wg0.forwarding" = 1; "net.ipv4.conf.eno1.forwarding" = 1; };
+  boot.extraModprobeConfig = ''
+    options vfio-pci ids=8086:9bc8
+    blacklist i915
+  '';
+  boot.kernelParams = [
+   "intel_iommu=on"
+  ];
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/0d20b2bf-935c-48c7-bd07-8b81ae7ddbcf";
@@ -24,6 +32,12 @@
     device = "/dev/data_ssd/nas";
     fsType = "btrfs";
     options = ["ssd" "discard=async" "noatime" "nodiratime" "compress=zstd" ];
+   };
+
+  fileSystems."/vms" = {
+    device = "/dev/data_ssd/vms";
+    fsType = "ext4";
+    options = ["noatime" "nodiratime"];
    };
 
   boot.initrd.preLVMCommands = ''
